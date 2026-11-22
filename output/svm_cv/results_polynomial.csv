@@ -1,0 +1,3 @@
+Kernel,Model,Macro F1 (t=0),Threshold*,Macro F1 (t*),Accuracy (t=0),Waktu fit+predict (detik),Rata-rata #SV,Kesepakatan prediksi Scratch vs sklearn,TN,FP,FN,TP
+polynomial,Scratch,0.8041170817687721,-0.362,0.8121764465484353,0.8341431337449311,151.8876347541809,8667.4,1.0,16775,1629,2911,6058
+polynomial,sklearn,0.8041170817687721,-0.362,0.812187130141901,0.8341431337449311,110.35982036590576,8669.0,1.0,16775,1629,2911,6058
