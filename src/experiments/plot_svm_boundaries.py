@@ -1,32 +1,9 @@
-"""Bonus SVM: gambar bidang pemisah, margin, dan support vector untuk setiap kernel.
-
-Data hasil preprocessing (sudah distandardisasi) diproyeksikan ke 2D, lalu SVM from
-scratch dilatih ulang pada ruang 2D tersebut untuk tiap kernel (Linear, Polynomial,
-Gaussian). Dua pilihan ruang 2D:
-  --mode features (default): dua fitur paling diskriminatif, yaitu days_before_arrival
-      dan special_requests (pasangan dengan Macro F1 tertinggi dari 36 pasangan kandidat
-      pada uji 3-fold SVM RBF di 3000 sampel).
-  --mode pca: dua komponen utama PCA (SVD NumPy). Variansi terjelaskan PC1+PC2 hanya
-      ~18% sehingga kelas sangat bertumpuk; disediakan sebagai pembanding.
-class_weight="balanced" dipakai agar pada ruang 2D yang bertumpuk model tidak
-menebak semua sampel sebagai kelas mayoritas. Yang digambar:
-  - bidang pemisah  f(x) = 0  (garis hitam tegas)
-  - batas margin    f(x) = -1 dan f(x) = +1  (garis putus-putus)
-  - support vector  (alpha_i > 0, dilingkari)
-
-Menjalankan:
-    python -m src.experiments.plot_svm_boundaries [--mode features|pca] [--n-samples 1500]
-Output: output/figures/svm_decision_boundaries[_pca].png
-"""
 from __future__ import annotations
 
 import argparse
 import sys
 from pathlib import Path
 
-import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -51,12 +28,11 @@ KERNEL_SETTINGS = [
 
 
 def pca_2d(X):
-    """PCA 2 komponen via SVD pada data ter-center (fit hanya pada data yang diberikan)."""
     mean = X.mean(axis=0)
     _, s, vt = np.linalg.svd(X - mean, full_matrices=False)
     explained = (s ** 2) / np.sum(s ** 2)
     Z = (X - mean) @ vt[:2].T
-    Z = (Z - Z.mean(axis=0)) / Z.std(axis=0)    # standarisasi agar skala kedua sumbu setara
+    Z = (Z - Z.mean(axis=0)) / Z.std(axis=0)    # samakan skala sumbu
     return Z, explained[:2]
 
 
@@ -82,7 +58,7 @@ def plot_kernel(ax, Z, y, title, params, jitter_y=False, seed=SEED):
     ax.contourf(xx, yy, f, levels=np.linspace(-lim, lim, 21), cmap="RdBu_r", alpha=0.25, extend="both")
     ax.contour(xx, yy, f, levels=[-1, 0, 1], colors="k", linestyles=["--", "-", "--"], linewidths=[1, 1.8, 1])
 
-    # Jitter vertikal hanya untuk tampilan fitur diskrit (tidak memengaruhi model).
+    # jitter cuma buat tampilan fitur diskrit
     jit = np.random.default_rng(seed).uniform(-0.08, 0.08, len(Z)) if jitter_y else np.zeros(len(Z))
     colors = np.where(y == 1, "#c0392b", "#2c6fbb")
     ax.scatter(Z[:, 0], Z[:, 1] + jit, c=colors, s=9, alpha=0.75, linewidths=0)

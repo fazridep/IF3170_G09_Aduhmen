@@ -1,20 +1,3 @@
-"""Eksperimen SVM from scratch vs scikit-learn + submisi Kaggle (metrik: Macro F1-Score).
-
-Menjalankan (dari root repo):
-    python -m src.experiments.run_svm_experiment
-        -> latih model final (kernel Gaussian), uji save/load, tulis
-           output/submissions/submission_svm.csv dan output/models/svm_kaggle.pkl
-    python -m src.experiments.run_svm_experiment --cv [--kernels linear polynomial gaussian] [--folds 5]
-        -> Stratified K-Fold: bandingkan SVM from scratch dengan sklearn.svm.SVC
-           (parameter sama) untuk tiap kernel, cari threshold Macro F1 terbaik dari
-           prediksi out-of-fold, simpan tabel di output/svm_cv/ dan grafik di output/figures/
-    python -m src.experiments.run_svm_experiment --plot-only
-        -> gambar ulang grafik dari hasil CV yang sudah tersimpan
-
-Preprocessing memakai pipeline yang sama dengan KNN (src/experiments/knn_common.py):
-DataPreprocessor (imputasi, fitur domain, one-hot, standardisasi) + fitur tanggal.
-Preprocessing di-fit HANYA pada data latih tiap fold (train dan test tidak digabung).
-"""
 from __future__ import annotations
 
 import argparse
@@ -25,9 +8,6 @@ import sys
 import time
 from pathlib import Path
 
-import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -50,9 +30,7 @@ SUBMISSIONS_DIR = ROOT_DIR / "output" / "submissions"
 FIGURES_DIR = ROOT_DIR / "output" / "figures"
 CV_DIR = ROOT_DIR / "output" / "svm_cv"
 
-# Konfigurasi tiap kernel. gamma_mult mengalikan gamma "scale" = 1 / (n_fitur * Var(X)).
-# Gaussian dipilih lewat grid search holdout 80/20 (C in {3,5,10,20,30,100},
-# gamma_mult in {0.5,1,2,3,4}); C=10, gamma=3*scale berada di plateau terbaik (~0.84).
+# gamma = gamma_mult / (n_fitur * Var(X)). Param Gaussian dari grid search holdout 80/20.
 KERNEL_CONFIGS = {
     "linear": dict(kernel="linear", C=1.0),
     "polynomial": dict(kernel="polynomial", C=1.0, degree=3, coef0=1.0, gamma_mult=1.0),
@@ -60,23 +38,15 @@ KERNEL_CONFIGS = {
 }
 KAGGLE_KERNEL = "gaussian"
 
-# Threshold tuning untuk F1 (Lipton, Elkan & Narayanaswamy, ECML PKDD 2014)
-# Ambang decision function dipilih dari prediksi out-of-fold 5-fold CV kernel Gaussian
-# (--cv). Macro F1 OOF datar di rentang t = -0.35 .. -0.10 (0.838-0.839), lebih baik dari
-# t = 0 / sign(f(x)) (0.837); dipilih t = -0.30 di tengah plateau agar tidak overfit ke CV.
+# Threshold tuning untuk F1 (Lipton, Elkan & Narayanaswamy, ECML PKDD 2014) https://link.springer.com/chapter/10.1007/978-3-662-44851-9_15
+# dipilih dari OOF 5-fold Gaussian; F1 datar di -0.35..-0.10, ambil tengahnya.
 THRESHOLD = -0.30
 
-# Pembobotan fitur (Mitchell, Machine Learning, 1997, Bab 8.2) memakai bobot hasil
-# src/experiments/search_knn_weights.py. Pada kernel Gaussian, mengalikan fitur ke-k dengan
-# w_k setara dengan kernel Gaussian anisotropik exp(-gamma * sum_k w_k^2 (x_k - z_k)^2):
-# O. Chapelle, V. Vapnik, O. Bousquet, S. Mukherjee, "Choosing Multiple Parameters for
-# Support Vector Machines," Machine Learning 46, 2002, pp. 131-159.
+# Bobot fitur dari search_knn_weights.py. Di kernel Gaussian ini sama dengan gamma per fitur
+# (Chapelle dkk., "Choosing Multiple Parameters for SVM", Machine Learning 46, 2002).
 USE_FEATURE_WEIGHTS = True
 
 
-# ---------------------------------------------------------------------------
-# Utilitas
-# ---------------------------------------------------------------------------
 def seed_everything(seed=SEED):
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
@@ -84,7 +54,6 @@ def seed_everything(seed=SEED):
 
 
 def preprocess(train_part, other_part):
-    """Fit preprocessing pada train_part, transform other_part; lalu terapkan bobot fitur."""
     prep = make_preprocessor()
     X_train = prep.fit_transform(add_date_features(train_part), train_part["is_canceled"].to_numpy())
     X_other = prep.transform(add_date_features(other_part))
@@ -96,7 +65,6 @@ def preprocess(train_part, other_part):
 
 
 def resolve_params(cfg, X_train):
-    """Ubah gamma_mult menjadi nilai gamma numerik (dihitung dari data latih saja)."""
     params = {k: v for k, v in cfg.items() if k != "gamma_mult"}
     if "gamma_mult" in cfg:
         params["gamma"] = cfg["gamma_mult"] / (X_train.shape[1] * X_train.var())
@@ -119,16 +87,12 @@ def macro_f1(y, scores, threshold):
 
 
 def best_threshold(y, scores, n_grid=401):
-    """Cari ambang decision function dengan Macro F1 terbaik (grid pada kuantil skor)."""
     grid = np.unique(np.round(np.quantile(scores, np.linspace(0.05, 0.95, n_grid)), 3))
     f1s = np.array([macro_f1(y, scores, t) for t in grid])
     k = int(np.argmax(f1s))
     return float(grid[k]), float(f1s[k])
 
 
-# ---------------------------------------------------------------------------
-# Model final + submisi Kaggle
-# ---------------------------------------------------------------------------
 def train_final_and_submit(train_df, test_df, kernel=KAGGLE_KERNEL, threshold=THRESHOLD):
     train_clean = DataPreprocessor.clean_training_dataframe(train_df)
     X_train, X_test, _ = preprocess(train_clean, test_df)
@@ -141,7 +105,7 @@ def train_final_and_submit(train_df, test_df, kernel=KAGGLE_KERNEL, threshold=TH
     print(f"Latih {model} selesai dalam {time.time() - start:.1f} s "
           f"(iterasi SMO={model.estimators_[0].n_iter_}, #SV={model.n_support_[0]})")
 
-    # Save & load: hasil prediksi model yang di-load harus identik.
+    # hasil load harus memprediksi sama persis
     model_path = MODELS_DIR / "svm_kaggle.pkl"
     model.save(str(model_path))
     reloaded = SVM.load(str(model_path))
@@ -153,16 +117,13 @@ def train_final_and_submit(train_df, test_df, kernel=KAGGLE_KERNEL, threshold=TH
     submission = pd.DataFrame({"id": test_df["id"], "is_canceled": pred.astype(int)})
     sub_path = SUBMISSIONS_DIR / "submission_svm.csv"
     sub_path.parent.mkdir(parents=True, exist_ok=True)
-    submission.to_csv(sub_path, index=False)
+    submission.to_csv(sub_path, index=False, lineterminator="\n")
     print(f"Model  : {model_path.relative_to(ROOT_DIR)}")
     print(f"Submisi: {sub_path.relative_to(ROOT_DIR)}  (positif={pred.mean():.3f})")
     print(f"md5    : {hashlib.md5(sub_path.read_bytes()).hexdigest()}")
     return sub_path
 
 
-# ---------------------------------------------------------------------------
-# Cross-validation: from scratch vs scikit-learn
-# ---------------------------------------------------------------------------
 def cross_validate(train_df, kernels, n_folds):
     y = train_df["is_canceled"].to_numpy()
     impls = {"Scratch": make_scratch, "sklearn": make_sklearn}
@@ -249,7 +210,6 @@ def plot_cv_results(df):
     fig.savefig(out, dpi=150)
     plt.close(fig)
 
-    # Confusion matrix out-of-fold (threshold 0) untuk tiap kernel & implementasi.
     fig, axes = plt.subplots(2, len(kernels), figsize=(4.2 * len(kernels), 7.5), squeeze=False)
     for c, k in enumerate(kernels):
         for r, m in enumerate(["Scratch", "sklearn"]):
@@ -270,7 +230,7 @@ def plot_cv_results(df):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--cv", action="store_true", help="jalankan perbandingan K-Fold scratch vs sklearn")
     parser.add_argument("--kernels", nargs="+", default=list(KERNEL_CONFIGS), choices=list(KERNEL_CONFIGS))
     parser.add_argument("--folds", type=int, default=5)
