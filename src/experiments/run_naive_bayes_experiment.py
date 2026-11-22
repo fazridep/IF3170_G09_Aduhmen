@@ -414,9 +414,7 @@ def main() -> None:
     final_nb.fit(X_full_opt, y_full)
 
     model_v6_path = models_dir / "naive_bayes_model_v6.pkl"
-    model_short_path = models_dir / "naive_bayes_v6.pkl"
     final_nb.save(str(model_v6_path))
-    final_nb.save(str(model_short_path))
     loaded_nb = NaiveBayes.load(str(model_v6_path))
 
     test_proba_before = final_nb.predict_proba(X_test_opt)
