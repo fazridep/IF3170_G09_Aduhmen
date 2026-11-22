@@ -26,11 +26,13 @@ class KNN:
 
         self.classes_, self.y_train_ = np.unique(y, return_inverse=True)
 
+        # Pembobotan fitur (Mitchell, Machine Learning, 1997, Bab 8.2) https://www.cs.cmu.edu/~tom/files/MachineLearningTomMitchell.pdf
+        # fitur tak relevan mendominasi jarak, jadi tiap sumbu fitur diberi bobot yang dipilih lewat cross-validation.
         if self.feature_weights is None:
             self.feature_weights_ = np.ones(X.shape[1])
         else:
             self.feature_weights_ = np.asarray(self.feature_weights, dtype=np.float64)
-        self.used_features_ = self.feature_weights_ != 0   # fitur berbobot 0 dibuang
+        self.used_features_ = self.feature_weights_ != 0
 
         self.X_train_ = self._apply_weights(X)
         return self
@@ -72,6 +74,8 @@ class KNN:
         if self.weights == "uniform":
             votes = np.ones_like(dist)
         else:
+            # Pembobotan jarak (Dudani, IEEE Trans. SMC, 1976)
+            # tetangga diberi bobot menurut jaraknya, sehingga tetangga yang lebih dekat lebih berpengaruh.
             votes = np.zeros_like(dist)
             exact = (dist == 0).any(axis=1)
             votes[exact] = dist[exact] == 0
@@ -84,6 +88,8 @@ class KNN:
 
     def predict(self, X, threshold=None):
         proba = self.predict_proba(X)
+        # Threshold tuning untuk F1 (Lipton, Elkan & Narayanaswamy, ECML PKDD 2014) https://link.springer.com/chapter/10.1007/978-3-662-44851-9_15
+        # ambang optimal untuk F1 umumnya bukan 0.5, sehingga ambang dipilih dari data validasi.
         if threshold is not None and len(self.classes_) == 2:
             return self.classes_[(proba[:, 1] >= threshold).astype(int)]
         return self.classes_[np.argmax(proba, axis=1)]
