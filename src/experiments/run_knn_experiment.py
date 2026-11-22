@@ -19,9 +19,12 @@ from src.models.knn import KNN
 from src.preprocessing import DataPreprocessor
 
 KNN_PARAMS = dict(n_neighbors=25, metric="manhattan", weights="distance")
+# Threshold tuning untuk F1 (Lipton, Elkan & Narayanaswamy, ECML PKDD 2014)
+# Ambang optimal untuk F1 umumnya bukan 0.5, sehingga ambang dipilih dari data validasi.
 THRESHOLD = 0.48
 
-# Hasil search_knn_weights.py. Fitur yang tidak disebut berbobot 1.
+# Bobot fitur hasil search_knn_weights.py (Mitchell, Machine Learning, 1997, Bab 8.2)
+# Fitur tak relevan mendominasi jarak, jadi tiap sumbu fitur diberi bobot yang dipilih lewat cross-validation.
 FEATURE_WEIGHTS = {
     # Sangat penting
     "special_requests": 4,
