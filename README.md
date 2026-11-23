@@ -28,7 +28,7 @@ jupyter notebook src/notebook.ipynb
 Atau jalankan eksperimen per model dari root repo:
 
 ```bash
-python -m src.experiments.run_svm_experiment   # ganti svm dengan knn / naive_bayes / logreg / dtl
+python -m src.experiments.run_svm_experiment   
 ```
 
 ## Kelompok 09 (Aduhmen)
@@ -41,4 +41,4 @@ python -m src.experiments.run_svm_experiment   # ganti svm dengan knn / naive_ba
 | Daniel Putra Rywandi S. | 13524143 |
 | Dzakwan Muhammad Khairan Putra Purnama | 13524145 |
 
-![Klasemen liga](image.jpeg)
+![Klasemen liga](image.png)
